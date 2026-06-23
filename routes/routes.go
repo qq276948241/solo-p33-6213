@@ -46,6 +46,7 @@ func SetupRoutes(r *gin.Engine) {
 				borrow.GET("/:id", borrowController.GetRecordByID)
 				borrow.POST("", borrowController.Borrow)
 				borrow.POST("/return", borrowController.Return)
+				borrow.POST("/extend", borrowController.Extend)
 			}
 
 			stats := api.Group("/stats")

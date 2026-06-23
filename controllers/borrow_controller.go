@@ -192,6 +192,43 @@ func (bc *BorrowController) GetOverdueRecords(c *gin.Context) {
 	utils.Success(c, records)
 }
 
+func (bc *BorrowController) Extend(c *gin.Context) {
+	var req models.ExtendRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "Invalid request body, days must be between 1 and 30")
+		return
+	}
+
+	var record models.BorrowRecord
+	if err := config.DB.Preload("Device").Preload("User").First(&record, req.RecordID).Error; err != nil {
+		utils.NotFound(c, "Borrow record not found")
+		return
+	}
+
+	if record.Status != "borrowed" {
+		utils.BadRequest(c, "Only active borrow records can be extended")
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	role, _ := c.Get("role")
+
+	if role != "admin" && record.UserID != userID.(uint) {
+		utils.Forbidden(c, "You can only extend your own borrowed items")
+		return
+	}
+
+	newExpectedReturn := record.ExpectedReturn.AddDate(0, 0, req.Days)
+	record.ExpectedReturn = newExpectedReturn
+
+	if err := config.DB.Save(&record).Error; err != nil {
+		utils.InternalError(c, "Failed to extend borrow record")
+		return
+	}
+
+	utils.Success(c, record)
+}
+
 func (bc *BorrowController) GetRecordByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {

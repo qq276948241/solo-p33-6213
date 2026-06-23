@@ -66,3 +66,8 @@ type BorrowRequest struct {
 type ReturnRequest struct {
 	RecordID uint `json:"record_id" binding:"required"`
 }
+
+type ExtendRequest struct {
+	RecordID uint `json:"record_id" binding:"required"`
+	Days     int  `json:"days" binding:"required,min=1,max=30"`
+}
