@@ -68,6 +68,15 @@ func (sc *StatsController) GetOverview(c *gin.Context) {
 		return
 	}
 
+	borrowRate := 0.0
+	if totalDevices > 0 {
+		borrowRate = float64(borrowedDevices) / float64(totalDevices) * 100
+	}
+	overdueRate := 0.0
+	if activeBorrows > 0 {
+		overdueRate = float64(overdueCount) / float64(activeBorrows) * 100
+	}
+
 	utils.Success(c, gin.H{
 		"total_devices":      totalDevices,
 		"available_devices":  availableDevices,
@@ -77,8 +86,8 @@ func (sc *StatsController) GetOverview(c *gin.Context) {
 		"overdue_count":      overdueCount,
 		"total_records":      totalRecords,
 		"returned_records":   returnedRecords,
-		"borrow_rate":        float64(borrowedDevices) / float64(totalDevices) * 100,
-		"overdue_rate":       float64(overdueCount) / float64(activeBorrows) * 100,
+		"borrow_rate":        borrowRate,
+		"overdue_rate":       overdueRate,
 	})
 }
 
