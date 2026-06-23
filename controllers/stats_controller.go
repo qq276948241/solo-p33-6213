@@ -23,13 +23,13 @@ func (sc *StatsController) GetOverview(c *gin.Context) {
 	}
 
 	var availableDevices int64
-	if err := config.DB.Model(&models.Device{}).Where("status = ?", "available").Count(&availableDevices).Error; err != nil {
+	if err := config.DB.Model(&models.Device{}).Where("status = ?", models.StatusAvailable).Count(&availableDevices).Error; err != nil {
 		utils.InternalError(c, "Failed to count available devices")
 		return
 	}
 
 	var borrowedDevices int64
-	if err := config.DB.Model(&models.Device{}).Where("status = ?", "borrowed").Count(&borrowedDevices).Error; err != nil {
+	if err := config.DB.Model(&models.Device{}).Where("status = ?", models.StatusBorrowed).Count(&borrowedDevices).Error; err != nil {
 		utils.InternalError(c, "Failed to count borrowed devices")
 		return
 	}
@@ -41,15 +41,14 @@ func (sc *StatsController) GetOverview(c *gin.Context) {
 	}
 
 	var activeBorrows int64
-	if err := config.DB.Model(&models.BorrowRecord{}).Where("status = ?", "borrowed").Count(&activeBorrows).Error; err != nil {
+	if err := config.DB.Model(&models.BorrowRecord{}).Where("status = ?", models.StatusBorrowed).Count(&activeBorrows).Error; err != nil {
 		utils.InternalError(c, "Failed to count active borrows")
 		return
 	}
 
-	now := time.Now()
 	var overdueCount int64
 	if err := config.DB.Model(&models.BorrowRecord{}).
-		Where("status = 'borrowed' AND expected_return < ?", now).
+		Scopes(models.OverdueScope).
 		Count(&overdueCount).Error; err != nil {
 		utils.InternalError(c, "Failed to count overdue records")
 		return
@@ -63,7 +62,7 @@ func (sc *StatsController) GetOverview(c *gin.Context) {
 
 	var returnedRecords int64
 	if err := config.DB.Model(&models.BorrowRecord{}).
-		Where("status IN ?", []string{"returned", "overdue_returned"}).
+		Where("status IN ?", []string{models.StatusReturned, models.StatusOverdueReturned}).
 		Count(&returnedRecords).Error; err != nil {
 		utils.InternalError(c, "Failed to count returned records")
 		return
@@ -109,11 +108,11 @@ func (sc *StatsController) GetByCategory(c *gin.Context) {
 		rows.Scan(&cs.Category, &cs.Total)
 
 		config.DB.Model(&models.Device{}).
-			Where("category = ? AND status = ?", cs.Category, "available").
+			Where("category = ? AND status = ?", cs.Category, models.StatusAvailable).
 			Count(&cs.Available)
 
 		config.DB.Model(&models.Device{}).
-			Where("category = ? AND status = ?", cs.Category, "borrowed").
+			Where("category = ? AND status = ?", cs.Category, models.StatusBorrowed).
 			Count(&cs.Borrowed)
 
 		categories = append(categories, cs)
@@ -127,7 +126,7 @@ func (sc *StatsController) GetOverdueDetails(c *gin.Context) {
 
 	var records []models.BorrowRecord
 	if err := config.DB.Preload("User").Preload("Device").
-		Where("status = 'borrowed' AND expected_return < ?", now).
+		Scopes(models.OverdueScope).
 		Order("expected_return asc").
 		Find(&records).Error; err != nil {
 		utils.InternalError(c, "Failed to get overdue details")

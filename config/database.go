@@ -44,7 +44,7 @@ func InitDB() {
 
 func initDefaultAdmin() {
 	var count int64
-	DB.Model(&models.User{}).Where("role = ?", "admin").Count(&count)
+	DB.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&count)
 	if count == 0 {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
 		if err != nil {
@@ -55,7 +55,7 @@ func initDefaultAdmin() {
 			Username: "admin",
 			Password: string(hashedPassword),
 			Name:     "系统管理员",
-			Role:     "admin",
+			Role:     models.RoleAdmin,
 		}
 		if err := DB.Create(&admin).Error; err != nil {
 			log.Printf("Failed to create default admin: %v", err)
@@ -76,7 +76,7 @@ func initDefaultAdmin() {
 			Username: "employee",
 			Password: string(hashedPassword),
 			Name:     "测试员工",
-			Role:     "employee",
+			Role:     models.RoleEmployee,
 		}
 		if err := DB.Create(&employee).Error; err != nil {
 			log.Printf("Failed to create test employee: %v", err)

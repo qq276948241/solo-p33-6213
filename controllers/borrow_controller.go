@@ -86,22 +86,8 @@ func (bc *BorrowController) Return(c *gin.Context) {
 		return
 	}
 
-	var record models.BorrowRecord
-	if err := config.DB.First(&record, req.RecordID).Error; err != nil {
-		utils.NotFound(c, "Borrow record not found")
-		return
-	}
-
-	if record.Status != "borrowed" {
-		utils.BadRequest(c, "This device has already been returned")
-		return
-	}
-
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
-
-	if role != "admin" && record.UserID != userID.(uint) {
-		utils.Forbidden(c, "You can only return your own borrowed items")
+	record, err := bc.validateBorrowOwnership(c, req.RecordID)
+	if err != nil {
 		return
 	}
 
@@ -109,19 +95,19 @@ func (bc *BorrowController) Return(c *gin.Context) {
 
 	now := time.Now()
 	record.ActualReturn = &now
-	if now.After(record.ExpectedReturn) {
-		record.Status = "overdue_returned"
+	if models.IsOverdue(record.ExpectedReturn) {
+		record.Status = models.StatusOverdueReturned
 	} else {
-		record.Status = "returned"
+		record.Status = models.StatusReturned
 	}
 
-	if err := tx.Save(&record).Error; err != nil {
+	if err := tx.Save(record).Error; err != nil {
 		tx.Rollback()
 		utils.InternalError(c, "Failed to update borrow record")
 		return
 	}
 
-	if err := tx.Model(&models.Device{}).Where("id = ?", record.DeviceID).Update("status", "available").Error; err != nil {
+	if err := tx.Model(&models.Device{}).Where("id = ?", record.DeviceID).Update("status", models.StatusAvailable).Error; err != nil {
 		tx.Rollback()
 		utils.InternalError(c, "Failed to update device status")
 		return
@@ -178,11 +164,9 @@ func (bc *BorrowController) GetAllRecords(c *gin.Context) {
 }
 
 func (bc *BorrowController) GetOverdueRecords(c *gin.Context) {
-	now := time.Now()
-
 	var records []models.BorrowRecord
 	if err := config.DB.Preload("User").Preload("Device").
-		Where("status = 'borrowed' AND expected_return < ?", now).
+		Scopes(models.OverdueScope).
 		Order("expected_return asc").
 		Find(&records).Error; err != nil {
 		utils.InternalError(c, "Failed to get overdue records")
@@ -199,34 +183,43 @@ func (bc *BorrowController) Extend(c *gin.Context) {
 		return
 	}
 
-	var record models.BorrowRecord
-	if err := config.DB.Preload("Device").Preload("User").First(&record, req.RecordID).Error; err != nil {
-		utils.NotFound(c, "Borrow record not found")
-		return
-	}
-
-	if record.Status != "borrowed" {
-		utils.BadRequest(c, "Only active borrow records can be extended")
-		return
-	}
-
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
-
-	if role != "admin" && record.UserID != userID.(uint) {
-		utils.Forbidden(c, "You can only extend your own borrowed items")
+	record, err := bc.validateBorrowOwnership(c, req.RecordID)
+	if err != nil {
 		return
 	}
 
 	newExpectedReturn := record.ExpectedReturn.AddDate(0, 0, req.Days)
 	record.ExpectedReturn = newExpectedReturn
 
-	if err := config.DB.Save(&record).Error; err != nil {
+	if err := config.DB.Save(record).Error; err != nil {
 		utils.InternalError(c, "Failed to extend borrow record")
 		return
 	}
 
 	utils.Success(c, record)
+}
+
+func (bc *BorrowController) validateBorrowOwnership(c *gin.Context, recordID uint) (*models.BorrowRecord, error) {
+	var record models.BorrowRecord
+	if err := config.DB.Preload("Device").Preload("User").First(&record, recordID).Error; err != nil {
+		utils.NotFound(c, "Borrow record not found")
+		return nil, &utils.AppError{}
+	}
+
+	if record.Status != models.StatusBorrowed {
+		utils.BadRequest(c, "Only active borrow records can be processed")
+		return nil, &utils.AppError{}
+	}
+
+	userID, _ := c.Get("userID")
+	role, _ := c.Get("role")
+
+	if role != models.RoleAdmin && record.UserID != userID.(uint) {
+		utils.Forbidden(c, "You can only process your own borrowed items")
+		return nil, &utils.AppError{}
+	}
+
+	return &record, nil
 }
 
 func (bc *BorrowController) GetRecordByID(c *gin.Context) {

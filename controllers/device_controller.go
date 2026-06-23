@@ -35,7 +35,7 @@ func (dc *DeviceController) Create(c *gin.Context) {
 		Category:     req.Category,
 		SerialNumber: req.SerialNumber,
 		Description:  req.Description,
-		Status:       "available",
+		Status:       models.StatusAvailable,
 	}
 
 	if err := config.DB.Create(&device).Error; err != nil {
@@ -105,7 +105,7 @@ func (dc *DeviceController) Delete(c *gin.Context) {
 	}
 
 	var borrowCount int64
-	config.DB.Model(&models.BorrowRecord{}).Where("device_id = ? AND status = 'borrowed'", id).Count(&borrowCount)
+	config.DB.Model(&models.BorrowRecord{}).Where("device_id = ? AND status = ?", id, models.StatusBorrowed).Count(&borrowCount)
 	if borrowCount > 0 {
 		utils.BadRequest(c, "Cannot delete device that is currently borrowed")
 		return

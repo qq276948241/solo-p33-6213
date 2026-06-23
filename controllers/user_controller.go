@@ -67,8 +67,8 @@ func (uc *UserController) Register(c *gin.Context) {
 	}
 
 	role := req.Role
-	if role != "admin" && role != "employee" {
-		role = "employee"
+	if role != models.RoleAdmin && role != models.RoleEmployee {
+		role = models.RoleEmployee
 	}
 
 	user := models.User{

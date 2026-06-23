@@ -2,7 +2,27 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
+
+const (
+	StatusAvailable      = "available"
+	StatusBorrowed       = "borrowed"
+	StatusReturned       = "returned"
+	StatusOverdueReturned = "overdue_returned"
+
+	RoleAdmin    = "admin"
+	RoleEmployee = "employee"
+)
+
+func OverdueScope(db *gorm.DB) *gorm.DB {
+	return db.Where("status = ? AND expected_return < ?", StatusBorrowed, time.Now())
+}
+
+func IsOverdue(expectedReturn time.Time) bool {
+	return expectedReturn.Before(time.Now())
+}
 
 type User struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`

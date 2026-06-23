@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"equipment-borrow-system/models"
 	"equipment-borrow-system/utils"
 	"strings"
 
@@ -40,7 +41,7 @@ func AuthMiddleware() gin.HandlerFunc {
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
-		if !exists || role != "admin" {
+		if !exists || role != models.RoleAdmin {
 			utils.Forbidden(c, "Admin permission required")
 			c.Abort()
 			return
